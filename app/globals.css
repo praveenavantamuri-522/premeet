@@ -1,13 +1,10 @@
 :root {
-  --background: #ffffff;
-  --foreground: #111827;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0f172a;
-    --foreground: #f8fafc;
-  }
+  --background: #1e1e1e;
+  --foreground: #f8fafc;
+  --input-bg: #2d2d2d;
+  --border-color: #404040;
+  --accent-blue: #3b82f6;
+  --accent-hover: #2563eb;
 }
 
 body {
@@ -21,4 +18,38 @@ body {
 
 * {
   box-sizing: border-box;
+}
+
+/* Custom styles for the search form */
+input, select {
+  background-color: var(--input-bg);
+  border: 1px solid var(--border-color);
+  color: var(--foreground);
+}
+
+input:focus, select:focus {
+  border-color: var(--accent-blue);
+  outline: none;
+}
+
+/* Goal pill styles */
+.goal-pill {
+  padding: 10px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+  background-color: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.95rem;
+}
+
+.goal-pill.selected {
+  background-color: rgba(59, 130, 246, 0.2);
+  border-color: var(--accent-blue);
+  color: #60a5fa;
+}
+
+.goal-pill:hover:not(.selected) {
+  border-color: #64748b;
 }
