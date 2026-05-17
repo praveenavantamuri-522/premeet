@@ -84,6 +84,9 @@ export default function Home() {
   };
 
   const generateBrief = async (candidate: any) => {
+    // SECURITY LOCK: Prevent multiple clicks while loading
+    if (loadingMsg) return; 
+
     const finalGoal = getFinalGoal();
     setSelectedCandidate(candidate);
     
@@ -332,7 +335,6 @@ export default function Home() {
                     <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                       <span>{entry.type === 'organization' ? '🏢' : '👤'}</span>
                       <strong style={{ color: "#f8fafc" }}>{entry.name}</strong>
-                      {/* FIXED: Removed the invalid media query style completely */}
                       <span style={{ color: "#6b7280", fontSize: "0.85rem" }}>- {entry.headline}</span>
                     </div>
                     <span style={{ color: "#6b7280", fontSize: "0.85rem" }}>{entry.date}</span>
@@ -399,28 +401,51 @@ export default function Home() {
           <p className="no-print" style={{ color: "#9ca3af", marginBottom: "30px" }}>We found multiple profiles. Select the correct target to generate the dossier.</p>
           
           <div style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
-            {candidates.map((c, index) => (
-              <div 
-                key={index} 
-                onClick={() => generateBrief(c)} 
-                style={{ padding: "25px", border: "1px solid #404040", borderRadius: "12px", cursor: "pointer", backgroundColor: "#2d2d2d", transition: "all 0.2s" }}
-                onMouseOver={(e) => e.currentTarget.style.borderColor = '#3b82f6'}
-                onMouseOut={(e) => e.currentTarget.style.borderColor = '#404040'}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <span style={{ fontSize: "1.5rem" }}>{c.type === 'organization' ? '🏢' : '👤'}</span>
-                    <strong style={{ fontSize: "1.3rem", color: "#f8fafc" }}>{c.name}</strong>
+            {candidates.map((c, index) => {
+              // Check if THIS specific card is the one currently loading
+              const isLoadingThisCard = loadingMsg && selectedCandidate?.name === c.name;
+
+              return (
+                <div 
+                  key={index} 
+                  onClick={() => generateBrief(c)} 
+                  style={{ 
+                    padding: "25px", 
+                    border: "1px solid #404040", 
+                    borderRadius: "12px", 
+                    cursor: loadingMsg ? "not-allowed" : "pointer", 
+                    backgroundColor: "#2d2d2d", 
+                    transition: "all 0.2s",
+                    // Apply visual pulsing and lock out clicks via CSS
+                    animation: isLoadingThisCard ? "pulseBorder 1.5s infinite" : "none",
+                    opacity: loadingMsg && !isLoadingThisCard ? 0.5 : 1, // Dim the other cards
+                    pointerEvents: loadingMsg ? "none" : "auto" // Prevent double clicking
+                  }}
+                  onMouseOver={(e) => { if(!loadingMsg) e.currentTarget.style.borderColor = '#3b82f6' }}
+                  onMouseOut={(e) => { if(!loadingMsg) e.currentTarget.style.borderColor = '#404040' }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <span style={{ fontSize: "1.5rem" }}>{c.type === 'organization' ? '🏢' : '👤'}</span>
+                      <strong style={{ fontSize: "1.3rem", color: "#f8fafc" }}>{c.name}</strong>
+                    </div>
+                    
+                    {/* Swap the Score badge for a Loading badge if clicked */}
+                    {isLoadingThisCard ? (
+                      <span style={{ backgroundColor: "rgba(59, 130, 246, 0.2)", color: "#60a5fa", border: "1px solid #3b82f6", padding: "4px 12px", borderRadius: "20px", fontSize: "0.85rem", fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span className="spinner">⌛</span> Generating...
+                      </span>
+                    ) : (
+                      <span style={{ backgroundColor: "rgba(22, 101, 52, 0.3)", color: "#86efac", border: "1px solid #15803d", padding: "4px 12px", borderRadius: "20px", fontSize: "0.85rem", fontWeight: "bold" }}>Score: {c.matchScore}</span>
+                    )}
+
                   </div>
-                  <span style={{ backgroundColor: "rgba(22, 101, 52, 0.3)", color: "#86efac", border: "1px solid #15803d", padding: "4px 12px", borderRadius: "20px", fontSize: "0.85rem", fontWeight: "bold" }}>Score: {c.matchScore}</span>
+                  <div style={{ color: "#60a5fa", marginBottom: "12px", fontWeight: "600", fontSize: "1.1rem", marginLeft: "38px" }}>{c.headline}</div>
+                  <div style={{ color: "#9ca3af", fontSize: "0.95rem", lineHeight: "1.5", marginLeft: "38px" }}>{c.reason}</div>
                 </div>
-                <div style={{ color: "#60a5fa", marginBottom: "12px", fontWeight: "600", fontSize: "1.1rem", marginLeft: "38px" }}>{c.headline}</div>
-                <div style={{ color: "#9ca3af", fontSize: "0.95rem", lineHeight: "1.5", marginLeft: "38px" }}>{c.reason}</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
-          
-          {loadingMsg && <div style={{ marginTop: "30px", textAlign: "center", color: "#60a5fa", fontWeight: "bold", fontSize: "1.1rem" }}>{loadingMsg}</div>}
         </div>
       )}
 
@@ -443,7 +468,6 @@ export default function Home() {
               </div>
             </div>
             
-            {/* FIXED: window.print() is now safely wrapped for Next.js */}
             <button 
               onClick={() => { if (typeof window !== 'undefined') window.print(); }} 
               style={{ padding: "10px 15px", backgroundColor: "rgba(59, 130, 246, 0.1)", color: "#60a5fa", border: "1px solid #3b82f6", borderRadius: "8px", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", fontWeight: "bold" }}
@@ -505,8 +529,16 @@ export default function Home() {
         </div>
       )}
 
+      {/* NEW CSS FOR CARD ANIMATIONS */}
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulseBorder {
+          0% { border-color: #404040; box-shadow: 0 0 0 rgba(59, 130, 246, 0); }
+          50% { border-color: #3b82f6; box-shadow: 0 0 15px rgba(59, 130, 246, 0.4); }
+          100% { border-color: #404040; box-shadow: 0 0 0 rgba(59, 130, 246, 0); }
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .spinner { display: inline-block; animation: spin 2s linear infinite; }
       `}} />
     </main>
   );
