@@ -53,3 +53,19 @@ input:focus, select:focus {
 .goal-pill:hover:not(.selected) {
   border-color: #64748b;
 }
+
+/* Print styles for PDF Export */
+@media print {
+  body {
+    background-color: #1e1e1e !important;
+    -webkit-print-color-adjust: exact; 
+    print-color-adjust: exact;
+  }
+  .no-print {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+}

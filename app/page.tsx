@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function Home() {
   // App Routing State: 'home' | 'candidates' | 'brief'
@@ -21,6 +21,19 @@ export default function Home() {
   const [error, setError] = useState("");
   const [feedbackGiven, setFeedbackGiven] = useState(false);
 
+  // Vault & Draft States
+  const [vault, setVault] = useState<any[]>([]);
+  const [generatedDraft, setGeneratedDraft] = useState("");
+  const [isDrafting, setIsDrafting] = useState(false);
+
+  // Load Vault on startup
+  useEffect(() => {
+    const savedVault = localStorage.getItem('premeet_vault');
+    if (savedVault) {
+      setVault(JSON.parse(savedVault));
+    }
+  }, []);
+
   const predefinedGoals = [
     "Sales call", 
     "Job interview", 
@@ -35,6 +48,7 @@ export default function Home() {
     setSelectedGoal("");
     setCustomGoal("");
     setError("");
+    setGeneratedDraft("");
   };
 
   const getFinalGoal = () => {
@@ -79,6 +93,7 @@ export default function Home() {
     
     setError("");
     setFeedbackGiven(false);
+    setGeneratedDraft("");
 
     try {
       const response = await fetch("/api/research", {
@@ -91,6 +106,22 @@ export default function Home() {
       
       setBriefHtml(data.brief);
       setView('brief');
+
+      // Save to Vault
+      const newEntry = {
+        id: Date.now(),
+        name: candidate.name,
+        type: candidate.type,
+        headline: candidate.headline,
+        date: new Date().toLocaleDateString(),
+        html: data.brief
+      };
+      
+      // Keep last 10, remove duplicates of same target
+      const updatedVault = [newEntry, ...vault.filter(v => v.name !== candidate.name)].slice(0, 10);
+      setVault(updatedVault);
+      localStorage.setItem('premeet_vault', JSON.stringify(updatedVault));
+
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -98,8 +129,38 @@ export default function Home() {
     }
   };
 
+  const loadFromVault = (entry: any) => {
+    setSelectedCandidate({ name: entry.name, type: entry.type });
+    setBriefHtml(entry.html);
+    setGeneratedDraft("");
+    setView('brief');
+  };
+
+  const generateDraft = async (type: 'email' | 'linkedin') => {
+    setIsDrafting(true);
+    setGeneratedDraft("");
+    // FIXED: Correctly grab the user's meeting goal to pass to the Draft API
+    const finalGoal = getFinalGoal();
+    
+    try {
+      const response = await fetch("/api/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetName: selectedCandidate.name, briefContext: briefHtml, type, goal: finalGoal }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      setGeneratedDraft(data.draft);
+    } catch (err: any) {
+      console.error(err);
+      setGeneratedDraft("Failed to generate draft. Please try again.");
+    } finally {
+      setIsDrafting(false);
+    }
+  };
+
   const Header = () => (
-    <div style={{ textAlign: "center", marginBottom: "40px" }}>
+    <div className="no-print" style={{ textAlign: "center", marginBottom: "40px" }}>
       <h1 
         onClick={resetHome} 
         style={{ 
@@ -255,6 +316,32 @@ export default function Home() {
             {error && <div style={{ color: "#ef4444", fontWeight: "500", textAlign: "center", marginTop: "15px" }}>{error}</div>}
           </div>
           
+          {/* THE VAULT (Recent Dossiers) */}
+          {vault.length > 0 && (
+            <div style={{ marginTop: "50px" }}>
+              <h3 style={{ color: "#9ca3af", fontSize: "0.9rem", letterSpacing: "1px", borderBottom: "1px solid #333", paddingBottom: "10px" }}>THE VAULT (RECENT DOSSIERS)</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "15px" }}>
+                {vault.map((entry) => (
+                  <div 
+                    key={entry.id} 
+                    onClick={() => loadFromVault(entry)} 
+                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px", backgroundColor: "#2d2d2d", borderRadius: "8px", border: "1px solid #404040", cursor: "pointer", transition: "border 0.2s" }} 
+                    onMouseOver={(e) => e.currentTarget.style.borderColor = '#60a5fa'} 
+                    onMouseOut={(e) => e.currentTarget.style.borderColor = '#404040'}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <span>{entry.type === 'organization' ? '🏢' : '👤'}</span>
+                      <strong style={{ color: "#f8fafc" }}>{entry.name}</strong>
+                      {/* FIXED: Removed the invalid media query style completely */}
+                      <span style={{ color: "#6b7280", fontSize: "0.85rem" }}>- {entry.headline}</span>
+                    </div>
+                    <span style={{ color: "#6b7280", fontSize: "0.85rem" }}>{entry.date}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* HOW IT WORKS SECTION */}
           <div style={{ marginTop: "60px" }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "20px" }}>
@@ -300,7 +387,7 @@ export default function Home() {
       {/* --- VIEW: CANDIDATES --- */}
       {view === 'candidates' && (
         <div style={{ animation: "fadeIn 0.5s" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "15px", marginBottom: "20px" }}>
+          <div className="no-print" style={{ display: "flex", alignItems: "center", gap: "15px", marginBottom: "20px" }}>
             <button 
               onClick={() => setView('home')} 
               style={{ padding: "8px 12px", backgroundColor: "#333", color: "#f8fafc", border: "1px solid #404040", borderRadius: "6px", cursor: "pointer" }}
@@ -309,7 +396,7 @@ export default function Home() {
             </button>
             <h2 style={{ color: "#f8fafc", margin: 0 }}>Select Target</h2>
           </div>
-          <p style={{ color: "#9ca3af", marginBottom: "30px" }}>We found multiple profiles. Select the correct target to generate the dossier.</p>
+          <p className="no-print" style={{ color: "#9ca3af", marginBottom: "30px" }}>We found multiple profiles. Select the correct target to generate the dossier.</p>
           
           <div style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
             {candidates.map((c, index) => (
@@ -340,22 +427,68 @@ export default function Home() {
       {/* --- VIEW: BRIEF --- */}
       {view === 'brief' && briefHtml && (
         <div style={{ animation: "fadeIn 0.5s" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "15px", marginBottom: "20px", paddingBottom: "20px", borderBottom: "1px solid #404040" }}>
-             <button 
-              onClick={() => setView('candidates')} 
-              style={{ padding: "8px 12px", backgroundColor: "#333", color: "#f8fafc", border: "1px solid #404040", borderRadius: "6px", cursor: "pointer" }}
-            >
-              &larr; Back
-            </button>
-            <div>
-              <h2 style={{ fontSize: "2rem", margin: 0, color: "#f8fafc" }}>Intelligence Dossier</h2>
-              <p style={{ color: "#9ca3af", margin: "5px 0 0 0", fontSize: "1.1rem" }}>Target: {selectedCandidate?.name}</p>
+          
+          {/* Header area with PDF Download button */}
+          <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", paddingBottom: "20px", borderBottom: "1px solid #404040" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
+              <button 
+                onClick={() => setView('candidates')} 
+                style={{ padding: "8px 12px", backgroundColor: "#333", color: "#f8fafc", border: "1px solid #404040", borderRadius: "6px", cursor: "pointer" }}
+              >
+                &larr; Back
+              </button>
+              <div>
+                <h2 style={{ fontSize: "2rem", margin: 0, color: "#f8fafc" }}>Intelligence Dossier</h2>
+                <p style={{ color: "#9ca3af", margin: "5px 0 0 0", fontSize: "1.1rem" }}>Target: {selectedCandidate?.name}</p>
+              </div>
             </div>
+            
+            {/* FIXED: window.print() is now safely wrapped for Next.js */}
+            <button 
+              onClick={() => { if (typeof window !== 'undefined') window.print(); }} 
+              style={{ padding: "10px 15px", backgroundColor: "rgba(59, 130, 246, 0.1)", color: "#60a5fa", border: "1px solid #3b82f6", borderRadius: "8px", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", fontWeight: "bold" }}
+            >
+              📄 Save PDF
+            </button>
           </div>
 
           <div dangerouslySetInnerHTML={{ __html: briefHtml }} style={{ lineHeight: "1.6" }} />
+
+          {/* AI OUTREACH GENERATOR */}
+          <div className="no-print" style={{ marginTop: "40px", backgroundColor: "#222", padding: "25px", borderRadius: "12px", border: "1px solid #333" }}>
+            <h3 style={{ color: "#f8fafc", margin: "0 0 15px 0" }}>⚡ AI Outreach Writer</h3>
+            <p style={{ color: "#9ca3af", fontSize: "0.95rem", marginBottom: "20px" }}>Instantly draft a highly personalized message based on the psychological data and milestones above.</p>
+            
+            <div style={{ display: "flex", gap: "15px", marginBottom: "20px", flexWrap: "wrap" }}>
+              <button onClick={() => generateDraft('email')} disabled={isDrafting} style={{ padding: "12px 20px", backgroundColor: "#3b82f6", color: "#fff", border: "none", borderRadius: "6px", cursor: isDrafting ? "not-allowed" : "pointer", fontWeight: "bold", display: "flex", alignItems: "center", gap: "8px" }}>
+                📧 Draft Cold Email
+              </button>
+              <button onClick={() => generateDraft('linkedin')} disabled={isDrafting} style={{ padding: "12px 20px", backgroundColor: "#0e76a8", color: "#fff", border: "none", borderRadius: "6px", cursor: isDrafting ? "not-allowed" : "pointer", fontWeight: "bold", display: "flex", alignItems: "center", gap: "8px" }}>
+                💼 Draft LinkedIn DM
+              </button>
+            </div>
+
+            {isDrafting && <div style={{ color: "#60a5fa", fontStyle: "italic", marginBottom: "15px" }}>Writing personalized draft...</div>}
+            
+            {generatedDraft && (
+              <div style={{ animation: "fadeIn 0.3s" }}>
+                <textarea 
+                  readOnly 
+                  value={generatedDraft} 
+                  style={{ width: "100%", minHeight: "150px", padding: "15px", backgroundColor: "#2d2d2d", color: "#f8fafc", border: "1px solid #404040", borderRadius: "8px", fontSize: "1rem", lineHeight: "1.5", resize: "vertical", outline: "none" }}
+                />
+                <button 
+                  onClick={() => navigator.clipboard.writeText(generatedDraft)} 
+                  style={{ marginTop: "10px", padding: "8px 15px", backgroundColor: "#333", color: "#f8fafc", border: "1px solid #404040", borderRadius: "6px", cursor: "pointer" }}
+                >
+                  📋 Copy to Clipboard
+                </button>
+              </div>
+            )}
+          </div>
           
-           <div style={{ marginTop: "30px", paddingTop: "20px", borderTop: "1px solid #404040", display: "flex", alignItems: "center", gap: "15px" }}>
+          {/* Feedback buttons */}
+           <div className="no-print" style={{ marginTop: "30px", paddingTop: "20px", borderTop: "1px solid #404040", display: "flex", alignItems: "center", gap: "15px" }}>
             <span style={{ fontWeight: "600", color: "#9ca3af" }}>Was this brief helpful?</span>
             <button onClick={() => setFeedbackGiven(true)} style={{ padding: "8px 15px", border: "1px solid #404040", borderRadius: "6px", backgroundColor: "#333", color: "#fff", cursor: "pointer", fontSize: "1.1rem" }}>👍</button>
             <button onClick={() => setFeedbackGiven(true)} style={{ padding: "8px 15px", border: "1px solid #404040", borderRadius: "6px", backgroundColor: "#333", color: "#fff", cursor: "pointer", fontSize: "1.1rem" }}>👎</button>
@@ -363,6 +496,7 @@ export default function Home() {
           </div>
 
           <button 
+            className="no-print"
             onClick={resetHome}
             style={{ width: "100%", marginTop: "40px", padding: "16px", backgroundColor: "transparent", color: "#f8fafc", border: "1px solid #64748b", borderRadius: "8px", cursor: "pointer", fontSize: "1.1rem", fontWeight: "bold" }}
           >

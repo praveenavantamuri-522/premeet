@@ -6,10 +6,10 @@ export async function POST(req: Request) {
     const { candidate, goal } = await req.json();
     const isPerson = candidate.type === "person";
 
-    // 1. Specific Web Search (Scraping social media, alumni, papers, news, etc.)
+    // 1. Specific Web Search
     const searchQuery = isPerson 
-        ? `Latest news, interviews, personality, exam results, and career history for ${candidate.name}, ${candidate.headline}`
-        : `Detailed company profile, mission, key products, milestones, market share, and competitors for ${candidate.name}, ${candidate.headline}`;
+        ? `LinkedIn profile, email format, latest news, and career history for ${candidate.name}, ${candidate.headline}`
+        : `Official website, LinkedIn page, company profile, and products for ${candidate.name}, ${candidate.headline}`;
 
     const searchResponse = await fetch("https://api.tavily.com/search", {
       method: "POST",
@@ -28,7 +28,7 @@ export async function POST(req: Request) {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-    // 2. Base Instruction (Ensuring clean HTML, NO markdown)
+    // 2. Base Instruction
     const basePrompt = `
       You are an expert executive briefer and UI designer. 
       Target: ${candidate.name} (${candidate.headline})
@@ -36,16 +36,21 @@ export async function POST(req: Request) {
       Data: ${searchContext}
       
       Create a visually stunning, infographic-style brief using inline CSS designed for a dark theme (#1e1e1e background).
-      CRITICAL INSTRUCTION: Return your response ONLY as valid, clean HTML with inline CSS. DO NOT include markdown symbols like \`**\` or \`###\`. Use \`<h2>\`, \`<strong>\`, and \`<ul>\` tags strictly for formatting. Avoid walls of text. Be insightful and helpful.
+      CRITICAL INSTRUCTION: Return your response ONLY as valid, clean HTML with inline CSS. DO NOT include markdown symbols like \`**\` or \`###\`. Use \`<h2>\`, \`<strong>\`, and \`<ul>\` tags strictly for formatting.
     `;
 
     // 3. Conditional Prompts (Person vs. Org)
     let finalPrompt = "";
     if (isPerson) {
-        // Redesigned Person Prompt (New Personality Presentation)
         finalPrompt = `
           ${basePrompt}
           Use this visual structure:
+
+          <div style="margin-bottom: 25px; padding: 15px 20px; background: rgba(59, 130, 246, 0.1); border-radius: 8px; border: 1px solid #3b82f6; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+            <strong style="color: #60a5fa;">Direct Access:</strong>
+            <a href="[Extract exact LinkedIn URL from data, or # if none]" target="_blank" style="color: #f8fafc; text-decoration: none; display: flex; align-items: center; gap: 5px;">🔗 LinkedIn Profile</a>
+            <a href="mailto:[Guess the most likely corporate email based on name/company, e.g. first.last@company.com]" style="color: #f8fafc; text-decoration: none; display: flex; align-items: center; gap: 5px;">📧 [Guessed Email]</a>
+          </div>
 
           <h2>🧠 Psychological & Personality Matrix</h2>
           <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px;">
@@ -82,13 +87,17 @@ export async function POST(req: Request) {
           </ul>
 
           <hr style="margin: 30px 0; border: 0; border-top: 1px solid #404040;" />
-          <p style="font-size: 0.85em; color: #94a3b8; font-style: italic; text-align: center;">Note: The results are AI-generated based on web research and are prone to errors. Your own research and intuition should be used. Use feedback buttons below to help the agent learn.</p>
         `;
     } else {
-        // Redesigned Organization Prompt (Detailed Company Infographic)
         finalPrompt = `
           ${basePrompt}
-          Create a detailed infographic analysis of various aspects of this organization. Use this structure:
+          Use this structure:
+
+          <div style="margin-bottom: 25px; padding: 15px 20px; background: rgba(59, 130, 246, 0.1); border-radius: 8px; border: 1px solid #3b82f6; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+            <strong style="color: #60a5fa;">Official Links:</strong>
+            <a href="[Extract official Website URL, or #]" target="_blank" style="color: #f8fafc; text-decoration: none; display: flex; align-items: center; gap: 5px;">🌐 Website</a>
+            <a href="[Extract official LinkedIn Company URL, or #]" target="_blank" style="color: #f8fafc; text-decoration: none; display: flex; align-items: center; gap: 5px;">🔗 LinkedIn Page</a>
+          </div>
 
           <h2>🏢 Organization Profile: ${candidate.name}</h2>
           <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 20px;">
@@ -127,14 +136,12 @@ export async function POST(req: Request) {
           </ul>
 
           <hr style="margin: 30px 0; border: 0; border-top: 1px solid #404040;" />
-          <p style="font-size: 0.85em; color: #94a3b8; font-style: italic; text-align: center;">Note: The results are AI-generated based on web research and are prone to errors. Your own research and intuition should be used. Use feedback buttons below to help the agent learn.</p>
         `;
     }
 
     const result = await model.generateContent(finalPrompt);
     let htmlResponse = result.response.text().trim();
     
-    // Safety replacement (this is where the RegEx fix sits)
     if (htmlResponse.startsWith("```")) {
         htmlResponse = htmlResponse.replace(/```html/i, "").replace(/```/g, "").trim();
     }
