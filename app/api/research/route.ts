@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     const searchContext = searchData.results?.map((r: any) => `Source: ${r.url}\nContent: ${r.content}`).join("\n\n") || "";
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
 
     // 2. Base Instruction
     const basePrompt = `

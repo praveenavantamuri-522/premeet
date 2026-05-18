@@ -7,7 +7,7 @@ export async function POST(req: Request) {
     const { targetName, briefContext, type, goal } = await req.json();
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
 
     const platform = type === "email" ? "Cold Email" : "LinkedIn Direct Message";
     const constraints = type === "email" 

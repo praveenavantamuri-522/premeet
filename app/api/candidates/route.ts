@@ -26,8 +26,8 @@ export async function POST(req: Request) {
 
     // 2. AI Brain: Extract Matches (Prioritizing Org Profile first)
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
-    // Use gemini-2.5-flash as we fixed previously
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    // Use gemini-3.1-flash-lite as we fixed previously
+    const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
 
     const prompt = `
       You are an intelligence analyst. I searched the web for "${target}".
